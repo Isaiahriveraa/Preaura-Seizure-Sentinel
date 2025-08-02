@@ -14,7 +14,99 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      biosensor_readings: {
+        Row: {
+          created_at: string
+          eda: number
+          heart_rate: number
+          id: string
+          seizure_risk: number
+          skin_temp: number
+          timestamp: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          eda: number
+          heart_rate: number
+          id?: string
+          seizure_risk: number
+          skin_temp: number
+          timestamp?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          eda?: number
+          heart_rate?: number
+          id?: string
+          seizure_risk?: number
+          skin_temp?: number
+          timestamp?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          alert_threshold: number | null
+          created_at: string
+          display_name: string | null
+          emergency_contact: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          alert_threshold?: number | null
+          created_at?: string
+          display_name?: string | null
+          emergency_contact?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          alert_threshold?: number | null
+          created_at?: string
+          display_name?: string | null
+          emergency_contact?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      seizure_events: {
+        Row: {
+          alert_triggered: boolean
+          created_at: string
+          id: string
+          notes: string | null
+          risk_level: number
+          timestamp: string
+          user_id: string
+        }
+        Insert: {
+          alert_triggered?: boolean
+          created_at?: string
+          id?: string
+          notes?: string | null
+          risk_level: number
+          timestamp?: string
+          user_id: string
+        }
+        Update: {
+          alert_triggered?: boolean
+          created_at?: string
+          id?: string
+          notes?: string | null
+          risk_level?: number
+          timestamp?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
