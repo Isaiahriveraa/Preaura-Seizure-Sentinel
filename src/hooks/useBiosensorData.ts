@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { supabase } from '@/integrations/supabase/client'
 
 export interface BiosensorReading {
   timestamp: number
@@ -15,6 +16,8 @@ interface BiosensorHook {
   startRecording: () => void
   stopRecording: () => void
   clearHistory: () => void
+  saveToDatabase: (reading: BiosensorReading) => Promise<void>
+  saveSeizureEvent: (risk: number) => Promise<void>
 }
 
 // Mock data generation with realistic patterns
@@ -84,6 +87,40 @@ export const useBiosensorData = (): BiosensorHook => {
   const [history, setHistory] = useState<BiosensorReading[]>([])
   const [isRecording, setIsRecording] = useState(false)
 
+  const saveToDatabase = async (reading: BiosensorReading) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    try {
+      await supabase.from('biosensor_readings').insert({
+        user_id: user.id,
+        timestamp: new Date(reading.timestamp).toISOString(),
+        heart_rate: reading.heartRate,
+        skin_temp: reading.skinTemp,
+        eda: reading.eda,
+        seizure_risk: reading.seizureRisk
+      })
+    } catch (error) {
+      console.error('Error saving reading to database:', error)
+    }
+  }
+
+  const saveSeizureEvent = async (risk: number) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    try {
+      await supabase.from('seizure_events').insert({
+        user_id: user.id,
+        timestamp: new Date().toISOString(),
+        risk_level: risk,
+        alert_triggered: true
+      })
+    } catch (error) {
+      console.error('Error saving seizure event to database:', error)
+    }
+  }
+
   const generateNewReading = useCallback(() => {
     // Simulate pre-seizure pattern 5% of the time
     const isPreSeizure = Math.random() < 0.05
@@ -99,6 +136,8 @@ export const useBiosensorData = (): BiosensorHook => {
     
     if (isRecording) {
       setHistory(prev => [...prev.slice(-99), completeReading]) // Keep last 100 readings
+      // Save to database
+      setTimeout(() => saveToDatabase(completeReading), 0)
     }
   }, [history, isRecording])
 
@@ -128,6 +167,8 @@ export const useBiosensorData = (): BiosensorHook => {
     isRecording,
     startRecording,
     stopRecording,
-    clearHistory
+    clearHistory,
+    saveToDatabase,
+    saveSeizureEvent
   }
 }

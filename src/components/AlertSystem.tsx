@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle, Bell, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { supabase } from "@/integrations/supabase/client"
 
 interface AlertSystemProps {
   riskLevel: number
@@ -49,6 +50,9 @@ export const AlertSystem: React.FC<AlertSystemProps> = ({
         setShowActiveAlert(true)
         onAlert?.(newAlert.timestamp)
         
+        // Save seizure event to database
+        setTimeout(() => saveSeizureEvent(riskLevel), 0)
+        
         // Auto-dismiss after 10 seconds
         setTimeout(() => {
           setShowActiveAlert(false)
@@ -67,6 +71,22 @@ export const AlertSystem: React.FC<AlertSystemProps> = ({
   const clearAllAlerts = () => {
     setAlerts([])
     setShowActiveAlert(false)
+  }
+
+  const saveSeizureEvent = async (risk: number) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    try {
+      await supabase.from('seizure_events').insert({
+        user_id: user.id,
+        timestamp: new Date().toISOString(),
+        risk_level: risk,
+        alert_triggered: true
+      })
+    } catch (error) {
+      console.error('Error saving seizure event to database:', error)
+    }
   }
 
   const activeAlert = alerts.find(alert => !alert.dismissed)

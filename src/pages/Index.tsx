@@ -26,7 +26,7 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4">
+    <div className="bg-background p-4">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <Card className="bg-gradient-to-r from-primary/5 to-accent/5 border-primary/20">
