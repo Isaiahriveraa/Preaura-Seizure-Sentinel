@@ -162,6 +162,18 @@ export default function Auth() {
             </Tabs>
           </CardContent>
         </Card>
+        
+        {/* Doctor Portal Link */}
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-600 mb-2">Healthcare Professional?</p>
+          <Button 
+            variant="outline" 
+            onClick={() => navigate('/doctor-login')}
+            className="w-full"
+          >
+            Access Doctor Portal →
+          </Button>
+        </div>
       </div>
     </div>
   )

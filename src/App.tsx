@@ -10,6 +10,11 @@ import { Header } from "@/components/Header";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import History from "./pages/History";
+import Profile from "./pages/Profile";
+import PatientSeizureHistory from "./pages/PatientSeizureHistory";
+import DoctorLogin from "./pages/DoctorLogin";
+import DoctorDashboard from "./pages/DoctorDashboard";
+import PatientDetails from "./pages/PatientDetails";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +30,9 @@ const App = () => (
             <div className="min-h-screen bg-background">
               <Routes>
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/doctor-login" element={<DoctorLogin />} />
+                <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
+                <Route path="/patient-details/:patientId" element={<PatientDetails />} />
                 <Route path="/" element={
                   <ProtectedRoute>
                     <Header />
@@ -35,6 +43,18 @@ const App = () => (
                   <ProtectedRoute>
                     <Header />
                     <History />
+                  </ProtectedRoute>
+                } />
+                <Route path="/profile" element={
+                  <ProtectedRoute>
+                    <Header />
+                    <Profile />
+                  </ProtectedRoute>
+                } />
+                <Route path="/seizure-history" element={
+                  <ProtectedRoute>
+                    <Header />
+                    <PatientSeizureHistory />
                   </ProtectedRoute>
                 } />
                 <Route path="*" element={<NotFound />} />

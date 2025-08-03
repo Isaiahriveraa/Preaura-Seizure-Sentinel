@@ -1,4 +1,4 @@
-import { Brain, History, Home, LogOut, User } from "lucide-react"
+import { Brain, History, Home, LogOut, User, Activity } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/AuthContext"
 import { useNavigate, useLocation } from "react-router-dom"
@@ -42,6 +42,24 @@ export const Header = () => {
             >
               <History className="w-4 h-4" />
               History
+            </Button>
+            <Button
+              variant={location.pathname === '/seizure-history' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => navigate('/seizure-history')}
+              className="flex items-center gap-2"
+            >
+              <Activity className="w-4 h-4" />
+              My EEGs
+            </Button>
+            <Button
+              variant={location.pathname === '/profile' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => navigate('/profile')}
+              className="flex items-center gap-2"
+            >
+              <User className="w-4 h-4" />
+              Profile
             </Button>
           </nav>
         )}
