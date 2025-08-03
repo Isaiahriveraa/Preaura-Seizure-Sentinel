@@ -2,6 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend } from "recharts"
 import { BiosensorReading } from "@/hooks/useBiosensorData"
 import { Heart, Thermometer, Zap } from "lucide-react"
+import { useTemperature } from "@/contexts/TemperatureContext"
+import { TemperatureToggleCompact } from "./TemperatureToggle"
 
 interface BiosensorChartProps {
   data: BiosensorReading[]
@@ -9,11 +11,16 @@ interface BiosensorChartProps {
 }
 
 export const BiosensorChart: React.FC<BiosensorChartProps> = ({ data, currentReading }) => {
+  const { convertTemperature, getUnitSymbol } = useTemperature()
+  
+  // Convert current temperature for display
+  const displayTemp = convertTemperature(currentReading.skinTemp, 'celsius')
+  
   // Prepare chart data with last 20 readings
   const chartData = data.slice(-20).map((reading, index) => ({
     time: index,
     heartRate: reading.heartRate,
-    skinTemp: reading.skinTemp * 10, // Scale for better visualization
+    skinTemp: convertTemperature(reading.skinTemp, 'celsius') * 10, // Scale for better visualization
     eda: reading.eda * 10
   }))
 
@@ -33,13 +40,16 @@ export const BiosensorChart: React.FC<BiosensorChartProps> = ({ data, currentRea
         </Card>
         
         <Card>
-          <CardContent className="flex items-center p-4">
-            <Thermometer className="w-8 h-8 text-primary mr-3" />
-            <div>
-              <p className="text-sm text-muted-foreground">Skin Temp</p>
-              <p className="text-2xl font-bold">{currentReading.skinTemp.toFixed(1)}</p>
-              <p className="text-xs text-muted-foreground">°C</p>
+          <CardContent className="flex items-center justify-between p-4">
+            <div className="flex items-center">
+              <Thermometer className="w-8 h-8 text-primary mr-3" />
+              <div>
+                <p className="text-sm text-muted-foreground">Skin Temp</p>
+                <p className="text-2xl font-bold">{displayTemp.toFixed(1)}</p>
+                <p className="text-xs text-muted-foreground">{getUnitSymbol()}</p>
+              </div>
             </div>
+            <TemperatureToggleCompact />
           </CardContent>
         </Card>
         
@@ -87,7 +97,7 @@ export const BiosensorChart: React.FC<BiosensorChartProps> = ({ data, currentRea
                   dataKey="skinTemp" 
                   stroke="hsl(var(--primary))" 
                   strokeWidth={2}
-                  name="Skin Temp (×10 °C)"
+                  name={`Skin Temp (×10 ${getUnitSymbol()})`}
                   dot={false}
                 />
                 <Line 

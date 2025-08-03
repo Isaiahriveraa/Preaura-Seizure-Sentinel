@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { useAuth } from "@/contexts/AuthContext"
+import { useTemperature } from "@/contexts/TemperatureContext"
 import { supabase } from "@/integrations/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -10,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Calendar, Download, Filter, AlertTriangle, Activity } from "lucide-react"
 import { BiosensorReading } from "@/hooks/useBiosensorData"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { TemperatureToggle } from "@/components/TemperatureToggle"
 
 interface SeizureEvent {
   id: string
@@ -21,6 +23,7 @@ interface SeizureEvent {
 
 export default function History() {
   const { user } = useAuth()
+  const { convertTemperature, getUnitSymbol } = useTemperature()
   const [readings, setReadings] = useState<BiosensorReading[]>([])
   const [seizureEvents, setSeizureEvents] = useState<SeizureEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -73,18 +76,32 @@ export default function History() {
   }
 
   const filteredReadings = readings.filter(reading => {
-    const dateMatch = !dateFilter || new Date(reading.timestamp).toDateString().includes(dateFilter)
+    // Fix date filtering logic
+    let dateMatch = true
+    if (dateFilter) {
+      // Convert reading timestamp to YYYY-MM-DD format for comparison
+      const readingDate = new Date(reading.timestamp).toISOString().split('T')[0]
+      dateMatch = readingDate === dateFilter
+    }
+    
+    // Risk filter logic (this was working correctly)
     const riskMatch = !riskFilter || reading.seizureRisk >= parseFloat(riskFilter)
+    
     return dateMatch && riskMatch
   })
 
+  // Helper: Get unique dates in your data for debugging
+  const availableDates = [...new Set(readings.map(reading => 
+    new Date(reading.timestamp).toISOString().split('T')[0]
+  ))].sort().reverse()
+
   const exportData = () => {
     const csvContent = [
-      ['Timestamp', 'Heart Rate', 'Skin Temp', 'EDA', 'Seizure Risk'].join(','),
+      ['Timestamp', 'Heart Rate', `Skin Temp (${getUnitSymbol()})`, 'EDA', 'Seizure Risk'].join(','),
       ...filteredReadings.map(reading => [
         new Date(reading.timestamp).toISOString(),
         reading.heartRate,
-        reading.skinTemp,
+        convertTemperature(reading.skinTemp, 'celsius').toFixed(2),
         reading.eda,
         reading.seizureRisk
       ].join(','))
@@ -111,7 +128,7 @@ export default function History() {
     time: new Date(reading.timestamp).toLocaleTimeString(),
     heartRate: reading.heartRate,
     seizureRisk: reading.seizureRisk,
-    skinTemp: reading.skinTemp,
+    skinTemp: convertTemperature(reading.skinTemp, 'celsius'),
     eda: reading.eda
   }))
 
@@ -131,7 +148,10 @@ export default function History() {
       <div className="max-w-7xl mx-auto p-4 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Data History</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-bold">Data History</h1>
+            <TemperatureToggle />
+          </div>
           <Button onClick={exportData} className="flex items-center gap-2">
             <Download className="w-4 h-4" />
             Export CSV
@@ -213,26 +233,53 @@ export default function History() {
               <Filter className="w-5 h-5" />
               Filters
             </CardTitle>
+            <CardDescription>
+              Showing {filteredReadings.length} of {readings.length} readings
+              {availableDates.length > 0 && (
+                <div className="text-xs text-muted-foreground mt-2">
+                  Available dates: {availableDates.slice(0, 5).map(date => 
+                    new Date(date).toLocaleDateString()
+                  ).join(', ')}
+                  {availableDates.length > 5 && ` and ${availableDates.length - 5} more`}
+                </div>
+              )}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="date-filter">Date Filter</Label>
+                <Label htmlFor="date-filter">
+                  Filter by Date 
+                  {dateFilter && (
+                    <span className="text-muted-foreground font-normal ml-1">
+                      ({new Date(dateFilter).toLocaleDateString()})
+                    </span>
+                  )}
+                </Label>
                 <Input
                   id="date-filter"
                   type="date"
                   value={dateFilter}
                   onChange={(e) => setDateFilter(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]} // Can't select future dates
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="risk-filter">Minimum Risk Level</Label>
+                <Label htmlFor="risk-filter">
+                  Minimum Risk Level (%)
+                  {riskFilter && (
+                    <span className="text-muted-foreground font-normal ml-1">
+                      (≥ {riskFilter}%)
+                    </span>
+                  )}
+                </Label>
                 <Input
                   id="risk-filter"
                   type="number"
                   placeholder="e.g. 50"
                   min="0"
                   max="100"
+                  step="1"
                   value={riskFilter}
                   onChange={(e) => setRiskFilter(e.target.value)}
                 />
@@ -304,7 +351,7 @@ export default function History() {
                   <TableRow>
                     <TableHead>Timestamp</TableHead>
                     <TableHead>Heart Rate</TableHead>
-                    <TableHead>Skin Temp</TableHead>
+                    <TableHead>Skin Temp ({getUnitSymbol()})</TableHead>
                     <TableHead>EDA</TableHead>
                     <TableHead>Seizure Risk</TableHead>
                   </TableRow>
@@ -314,7 +361,7 @@ export default function History() {
                     <TableRow key={index}>
                       <TableCell>{new Date(reading.timestamp).toLocaleString()}</TableCell>
                       <TableCell>{reading.heartRate.toFixed(1)} bpm</TableCell>
-                      <TableCell>{reading.skinTemp.toFixed(1)}°C</TableCell>
+                      <TableCell>{convertTemperature(reading.skinTemp, 'celsius').toFixed(1)}{getUnitSymbol()}</TableCell>
                       <TableCell>{reading.eda.toFixed(2)} μS</TableCell>
                       <TableCell>
                         <Badge variant={getRiskColor(reading.seizureRisk)}>
