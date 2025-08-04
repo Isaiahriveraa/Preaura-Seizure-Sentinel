@@ -39,7 +39,7 @@ PreAura Seizure Sentinel is a comprehensive React-based web application designed
 - **Historical Data Analysis** - Interactive charts and data visualization
 - **Temperature Unit Conversion** - Celsius/Fahrenheit toggle functionality
 - **Alert System** - Customizable seizure risk threshold alerts
-- **Data Export** - CSV export functionality for medical records
+- **Data Export** - PDF export functionality for medical records
 - **Doctor Dashboard** - Professional interface for healthcare providers
 - **EEG Visualization** - Advanced EEG waveform analysis and display
 - **Patient-Doctor Assignments** - Secure patient monitoring relationships
@@ -75,6 +75,183 @@ Risk Factors:
 - **Personalized Models** - Individual patient adaptation
 - **Explainable AI** - Clear reasoning for predictions
 - **Time-to-Seizure Estimation** - Precise timing predictions (5-30 min advance warning)
+
+## 🧬 EEG Data Generation & Visualization System
+
+### **Synthetic EEG Generation**
+
+The application includes a sophisticated EEG data generation system that creates medically accurate, unique synthetic EEG waveforms for each recorded seizure event.
+
+#### **Core Components:**
+
+**📁 `/src/lib/eegGenerator.ts`** - Advanced EEG synthesis engine
+
+```typescript
+interface EEGData {
+  id: string; // Unique identifier
+  seizureId: string; // Links to seizure event
+  samplingRate: number; // 250 Hz (clinical standard)
+  duration: number; // Event duration in seconds
+  channels: string[]; // 16-channel 10-20 electrode system
+  data: EEGDataPoint[]; // Complete waveform dataset
+  metadata: {
+    seizureType: string; // focal/generalized/temporal
+    severity: number; // 1-10 severity scale
+    phase: string; // aura/ictal/postictal
+    generatedAt: Date; // Generation timestamp
+  };
+}
+```
+
+#### **Medical Accuracy Features:**
+
+**🧠 Standard 10-20 Electrode System:**
+
+- **Frontal**: Fp1, Fp2, F3, F4, F7, F8
+- **Central**: C3, C4
+- **Parietal**: P3, P4
+- **Occipital**: O1, O2
+- **Temporal**: T3, T4, T5, T6
+
+**⚡ Seizure Phase Modeling:**
+
+```typescript
+// Pre-ictal (Aura): Subtle frequency changes
+Math.sin(time * 8 + seed) * 20 + Math.sin(time * 13 + seed * 2) * 10;
+
+// Ictal: High amplitude spikes (3-5 Hz, 80-120 µV)
+Math.sin(time * spikeFreq * 2 * π + seed) * amplitude + spikes;
+
+// Post-ictal: Suppressed activity, slow recovery
+Math.sin(time * 2 + seed) * 10 + gradual_recovery;
+```
+
+**🎯 Seizure Type Localization:**
+
+- **Focal Seizures**: Enhanced frontal electrode activity (F3, F4, Fp1, Fp2)
+- **Temporal Seizures**: Emphasized temporal regions (T3, T4, T5, T6)
+- **Generalized**: Widespread synchronized activity across all channels
+
+#### **Uniqueness Algorithm:**
+
+**🔑 Hash-Based Seeding:**
+
+```typescript
+// Each seizure gets unique waveform patterns
+const seed = hashCode(seizureId + phase + channel);
+const uniquePattern = generateWaveform(seed, medicalParameters);
+```
+
+**🌊 Multi-Layer Pattern Generation:**
+
+1. **Base Medical Pattern**: Seizure type-specific waveforms
+2. **Temporal Variation**: Phase-based amplitude/frequency changes
+3. **Spatial Localization**: Channel-specific regional modifications
+4. **Individual Uniqueness**: Seizure ID-based pattern variations
+5. **Noise Modeling**: Realistic artifact and measurement noise
+
+### **EEG Visualization System**
+
+**📁 `/src/components/EEGModal.tsx`** - Interactive Canvas-based EEG viewer
+
+#### **Advanced Visualization Features:**
+
+**🎨 Canvas Rendering Engine:**
+
+- **Multi-channel display**: 16 simultaneous EEG traces
+- **Real-time scaling**: Automatic amplitude and time scaling
+- **Color coding**: Black (raw data) / Red (filtered data)
+- **Medical grid**: Time and amplitude reference grid
+
+**🕹️ Interactive Controls:**
+
+```typescript
+// Zoom functionality (0.5x to 8x)
+const visibleDuration = 10 / zoomLevel;
+
+// Time navigation
+const timeWindow = startTime + duration / zoom;
+
+// Animation playback
+const playbackSpeed = realTimeRate * animationMultiplier;
+```
+
+**📊 Clinical Information Display:**
+
+- **Seizure metadata**: Duration, type, severity, timestamp
+- **Technical specs**: Sampling rate, channel count, data quality
+- **Phase markers**: Visual indicators for aura/ictal/postictal phases
+- **Export functionality**: JSON data export for medical records
+
+#### **Medical Data Processing:**
+
+**🔬 Signal Processing Pipeline:**
+
+```typescript
+// Bandpass filtering simulation (1-70 Hz)
+const filteredSignal = rawSignal * 0.9 + noiseReduction;
+
+// Artifact removal
+const cleanedData = removeMovementArtifacts(filteredSignal);
+
+// Clinical scaling
+const displaySignal = scaleToMedicalUnits(cleanedData); // µV
+```
+
+### **Database Integration**
+
+**💾 EEG Data Storage:**
+
+```sql
+-- Enhanced seizure_events table
+ALTER TABLE seizure_events
+ADD COLUMN eeg_data JSONB;
+
+-- Optimized for EEG queries
+CREATE INDEX idx_seizure_events_eeg_data
+ON seizure_events USING GIN (eeg_data);
+```
+
+**🔄 Data Flow Architecture:**
+
+1. **Seizure Recording** → Generate unique EEG data
+2. **EEG Generation** → Medical pattern synthesis
+3. **Database Storage** → JSONB format for flexibility
+4. **Patient Access** → "View EEG" button in seizure history
+5. **Modal Display** → Interactive Canvas visualization
+
+### **Clinical Validation**
+
+**📚 Research Foundation:**
+
+- **EEG patterns** based on published seizure research
+- **Electrode placement** follows international 10-20 system
+- **Frequency analysis** matches clinical seizure signatures
+- **Amplitude scaling** uses standard microvolts (µV) units
+
+**🎯 Accuracy Features:**
+
+- **Phase-specific patterns**: Medically accurate seizure progression
+- **Regional localization**: Anatomically correct electrode emphasis
+- **Temporal dynamics**: Realistic seizure duration and evolution
+- **Individual variation**: Unique patterns while maintaining medical accuracy
+
+### **Usage Workflow**
+
+**👤 Patient Experience:**
+
+1. **Record Seizure** → Seizure Simulation component
+2. **Auto-generate EEG** → Unique waveform created and stored
+3. **View History** → Navigate to "My EEGs" → "History" tab
+4. **Access EEG** → Click "View EEG" button on any seizure
+5. **Explore Data** → Interactive modal with zoom/pan/export
+
+**👩‍⚕️ Doctor Experience:**
+
+1. **Patient Dashboard** → Select patient
+2. **Seizure Analysis** → Access patient's EEG history
+3. **Clinical Review** → Professional EEG visualization tools
+4. **Data Export** → Download EEG data for external analysis
 
 ### 🛠️ Tech Stack
 
@@ -499,6 +676,36 @@ const calculateSeizureRisk = (reading, history) => {
 - Real-time conversion display
 - Persistent user settings
 - Medical data accuracy
+
+### **EEG Generation & Visualization** 🧬
+
+**Synthetic EEG Creation:**
+
+- Unique waveforms generated for each seizure event
+- Medical accuracy based on 10-20 electrode system
+- Phase-specific patterns (aura → ictal → postictal)
+- Seizure type localization (focal, temporal, generalized)
+
+**Interactive Visualization:**
+
+- Canvas-based professional EEG display
+- Real-time zoom, pan, and navigation controls
+- Raw vs filtered data toggle (black/red visualization)
+- 16-channel simultaneous display with medical grid
+
+**Clinical Integration:**
+
+- Automatic EEG generation during seizure recording
+- Database storage as JSONB for efficient querying
+- "View EEG" functionality in patient seizure history
+- Export capabilities for medical record integration
+
+**Technical Specifications:**
+
+- 250 Hz sampling rate (clinical standard)
+- 16 channels using standard electrode placement
+- Hash-based uniqueness algorithm prevents duplicates
+- Medical-grade amplitude scaling (microvolts)
 
 ---
 

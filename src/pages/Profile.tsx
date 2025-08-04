@@ -22,9 +22,11 @@ import {
   Users,
   Stethoscope,
   AlertTriangle,
-  Clock
+  Clock,
+  Settings
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useTemperature } from "@/contexts/TemperatureContext"
 
 interface ExtendedProfile {
   id?: string
@@ -53,10 +55,12 @@ interface ExtendedProfile {
 export default function Profile() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const { unit, setUnit } = useTemperature()
   const [profile, setProfile] = useState<ExtendedProfile | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [measurementSystem, setMeasurementSystem] = useState<'metric' | 'imperial'>('metric')
   const [heightUnit, setHeightUnit] = useState<'cm' | 'ft'>('cm')
   const [heightFeet, setHeightFeet] = useState(0)
   const [heightInches, setHeightInches] = useState(0)
@@ -121,6 +125,10 @@ export default function Profile() {
 
         setProfile(profileData)
         setFormData(profileData)
+        
+        // Initialize measurement system based on current units
+        const isImperial = unit === 'fahrenheit' || weightUnit === 'lbs' || heightUnit === 'ft'
+        setMeasurementSystem(isImperial ? 'imperial' : 'metric')
         
         // Set height feet/inches for display
         if (profileData.height) {
@@ -238,6 +246,17 @@ export default function Profile() {
       ...prev,
       [field]: value
     }))
+  }
+
+  const handleMeasurementSystemChange = (system: 'metric' | 'imperial') => {
+    setMeasurementSystem(system)
+    
+    // Update unit preferences
+    setHeightUnit(system === 'imperial' ? 'ft' : 'cm')
+    setWeightUnit(system === 'imperial' ? 'lbs' : 'kg')
+    
+    // Update temperature unit
+    setUnit(system === 'imperial' ? 'fahrenheit' : 'celsius')
   }
 
   const calculateBMI = (height: number, weight: number): string => {
@@ -492,17 +511,11 @@ export default function Profile() {
                                 handleInputChange('height', cm)
                               } else {
                                 const feet = parseInt(value)
-                                if (feet >= 1 && feet <= 8) {
-                                  setHeightFeet(feet)
-                                  const cm = feetInchesToCm(feet, heightInches)
-                                  handleInputChange('height', cm)
-                                } else if (feet > 8) {
-                                  setHeightFeet(8)
-                                  const cm = feetInchesToCm(8, heightInches)
-                                  handleInputChange('height', cm)
-                                } else if (feet < 1 && feet > 0) {
-                                  setHeightFeet(1)
-                                  const cm = feetInchesToCm(1, heightInches)
+                                if (!isNaN(feet)) {
+                                  // Allow any reasonable value during typing, clamp to range
+                                  const clampedFeet = Math.max(0, Math.min(8, feet))
+                                  setHeightFeet(clampedFeet)
+                                  const cm = feetInchesToCm(clampedFeet, heightInches)
                                   handleInputChange('height', cm)
                                 }
                               }
@@ -525,17 +538,11 @@ export default function Profile() {
                                 handleInputChange('height', cm)
                               } else {
                                 const inches = parseInt(value)
-                                if (inches >= 0 && inches <= 11) {
-                                  setHeightInches(inches)
-                                  const cm = feetInchesToCm(heightFeet, inches)
-                                  handleInputChange('height', cm)
-                                } else if (inches > 11) {
-                                  setHeightInches(11)
-                                  const cm = feetInchesToCm(heightFeet, 11)
-                                  handleInputChange('height', cm)
-                                } else if (inches < 0) {
-                                  setHeightInches(0)
-                                  const cm = feetInchesToCm(heightFeet, 0)
+                                if (!isNaN(inches)) {
+                                  // Allow any reasonable value during typing, clamp to range
+                                  const clampedInches = Math.max(0, Math.min(11, inches))
+                                  setHeightInches(clampedInches)
+                                  const cm = feetInchesToCm(heightFeet, clampedInches)
                                   handleInputChange('height', cm)
                                 }
                               }
@@ -597,16 +604,32 @@ export default function Profile() {
                             setWeightPounds(0)
                           } else {
                             const kg = parseFloat(value)
-                            if (kg >= 20 && kg <= 300) {
-                              handleInputChange('weight', kg)
-                              setWeightPounds(kgToPounds(kg))
-                            } else if (kg > 300) {
-                              handleInputChange('weight', 300)
-                              setWeightPounds(kgToPounds(300))
-                            } else if (kg < 20 && kg > 0) {
-                              handleInputChange('weight', 20)
-                              setWeightPounds(kgToPounds(20))
+                            // Only validate if the number is complete and makes sense
+                            if (!isNaN(kg)) {
+                              if (kg >= 20 && kg <= 300) {
+                                handleInputChange('weight', kg)
+                                setWeightPounds(kgToPounds(kg))
+                              } else if (kg > 300) {
+                                handleInputChange('weight', 300)
+                                setWeightPounds(kgToPounds(300))
+                              } else if (kg > 0 && kg < 20) {
+                                // Allow typing but don't force minimum until they finish
+                                handleInputChange('weight', kg)
+                                setWeightPounds(kgToPounds(kg))
+                              } else if (kg <= 0) {
+                                // Don't allow negative or zero
+                                handleInputChange('weight', 0)
+                                setWeightPounds(0)
+                              }
                             }
+                          }
+                        }}
+                        onBlur={(e) => {
+                          // Enforce minimum when user finishes editing
+                          const kg = parseFloat(e.target.value)
+                          if (!isNaN(kg) && kg > 0 && kg < 20) {
+                            handleInputChange('weight', 20)
+                            setWeightPounds(kgToPounds(20))
                           }
                         }}
                         placeholder="Enter weight (20-300 kg)"
@@ -625,19 +648,36 @@ export default function Profile() {
                             handleInputChange('weight', 0)
                           } else {
                             const pounds = parseFloat(value)
-                            if (pounds >= 44 && pounds <= 660) {
-                              setWeightPounds(pounds)
-                              const kg = poundsToKg(pounds)
-                              handleInputChange('weight', kg)
-                            } else if (pounds > 660) {
-                              setWeightPounds(660)
-                              const kg = poundsToKg(660)
-                              handleInputChange('weight', kg)
-                            } else if (pounds < 44 && pounds > 0) {
-                              setWeightPounds(44)
-                              const kg = poundsToKg(44)
-                              handleInputChange('weight', kg)
+                            // Only validate if the number is complete and makes sense
+                            if (!isNaN(pounds)) {
+                              if (pounds >= 44 && pounds <= 660) {
+                                setWeightPounds(pounds)
+                                const kg = poundsToKg(pounds)
+                                handleInputChange('weight', kg)
+                              } else if (pounds > 660) {
+                                setWeightPounds(660)
+                                const kg = poundsToKg(660)
+                                handleInputChange('weight', kg)
+                              } else if (pounds > 0 && pounds < 44) {
+                                // Allow typing but don't force minimum until they finish
+                                setWeightPounds(pounds)
+                                const kg = poundsToKg(pounds)
+                                handleInputChange('weight', kg)
+                              } else if (pounds <= 0) {
+                                // Don't allow negative or zero
+                                setWeightPounds(0)
+                                handleInputChange('weight', 0)
+                              }
                             }
+                          }
+                        }}
+                        onBlur={(e) => {
+                          // Enforce minimum when user finishes editing
+                          const pounds = parseFloat(e.target.value)
+                          if (!isNaN(pounds) && pounds > 0 && pounds < 44) {
+                            setWeightPounds(44)
+                            const kg = poundsToKg(44)
+                            handleInputChange('weight', kg)
                           }
                         }}
                         placeholder="Enter weight (44-660 lbs)"
@@ -717,6 +757,68 @@ export default function Profile() {
                   {profile?.medical_notes || 'No additional notes provided'}
                 </p>
               )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* App Preferences */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5" />
+              App Preferences
+            </CardTitle>
+            <CardDescription>
+              Customize your measurement system and display preferences
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Measurement System</Label>
+                <p className="text-sm text-muted-foreground">
+                  Choose your preferred measurement system for height, weight, and temperature
+                </p>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="measurementSystem"
+                      value="metric"
+                      checked={measurementSystem === 'metric'}
+                      onChange={() => handleMeasurementSystemChange('metric')}
+                      className="w-4 h-4"
+                    />
+                    <div className="space-y-1">
+                      <div className="font-medium">Metric</div>
+                      <div className="text-xs text-muted-foreground">cm, kg, °C</div>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="measurementSystem"
+                      value="imperial"
+                      checked={measurementSystem === 'imperial'}
+                      onChange={() => handleMeasurementSystemChange('imperial')}
+                      className="w-4 h-4"
+                    />
+                    <div className="space-y-1">
+                      <div className="font-medium">Imperial (US)</div>
+                      <div className="text-xs text-muted-foreground">ft/in, lbs, °F</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+              
+              <div className="p-3 bg-muted/50 rounded-md text-sm">
+                <div className="font-medium mb-1">Current Settings:</div>
+                <div className="text-muted-foreground">
+                  Height: {heightUnit === 'cm' ? 'Centimeters' : 'Feet & Inches'} •{' '}
+                  Weight: {weightUnit === 'kg' ? 'Kilograms' : 'Pounds'} •{' '}
+                  Temperature: {unit === 'celsius' ? 'Celsius (°C)' : 'Fahrenheit (°F)'}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

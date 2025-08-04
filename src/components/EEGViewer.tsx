@@ -9,9 +9,12 @@ import {
   RotateCcw,
   Calendar,
   Clock,
-  Activity
+  Activity,
+  FileImage,
+  FileText
 } from "lucide-react";
 import { type SeizureEvent, formatSeizureDate, getSeverityColor } from "@/data/mockPatients";
+import jsPDF from 'jspdf';
 
 interface EEGViewerProps {
   seizureEvent: SeizureEvent;
@@ -177,17 +180,109 @@ const EEGViewer: React.FC<EEGViewerProps> = ({ seizureEvent, patientName }) => {
   };
 
   useEffect(() => {
-    drawEEG();
+    // Small delay to ensure canvas is properly mounted and sized
+    const timer = setTimeout(() => {
+      drawEEG();
+    }, 10);
+    
+    return () => clearTimeout(timer);
   }, [zoom, showRaw, showCleaned, seizureEvent]);
 
-  const handleDownload = () => {
+  // Ensure initial render when component mounts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      drawEEG();
+    }, 50);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleDownload = (format: 'png' | 'pdf' = 'png') => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const link = document.createElement('a');
-    link.download = `${patientName}_seizure_${seizureEvent.id}_eeg.png`;
-    link.href = canvas.toDataURL();
-    link.click();
+    if (format === 'png') {
+      // Export as PNG (original functionality)
+      const link = document.createElement('a');
+      link.download = `${patientName}_seizure_${seizureEvent.id}_eeg.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+    } else {
+      // Export as PDF with detailed report
+      try {
+        const pdf = new jsPDF();
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        let yPosition = 20;
+
+        // Title
+        pdf.setFontSize(16);
+        pdf.setFont(undefined, 'bold');
+        pdf.text('EEG Analysis Report', pageWidth / 2, yPosition, { align: 'center' });
+        yPosition += 15;
+
+        // Patient and seizure info
+        pdf.setFontSize(12);
+        pdf.setFont(undefined, 'normal');
+        pdf.text(`Patient: ${patientName}`, 20, yPosition);
+        yPosition += 8;
+        pdf.text(`Date: ${formatSeizureDate(seizureEvent.date, seizureEvent.time)}`, 20, yPosition);
+        yPosition += 8;
+        pdf.text(`Duration: ${seizureEvent.duration} seconds`, 20, yPosition);
+        yPosition += 8;
+        pdf.text(`Type: ${seizureEvent.type.toUpperCase()} seizure`, 20, yPosition);
+        yPosition += 8;
+        pdf.text(`Severity: ${seizureEvent.severity.toUpperCase()}`, 20, yPosition);
+        yPosition += 15;
+
+        // EEG Image
+        const canvasImg = canvas.toDataURL('image/png', 1.0);
+        const imgWidth = pageWidth - 40;
+        const imgHeight = (canvas.height / canvas.width) * imgWidth;
+        
+        pdf.text('EEG Waveforms:', 20, yPosition);
+        yPosition += 10;
+        pdf.addImage(canvasImg, 'PNG', 20, yPosition, imgWidth, Math.min(imgHeight, 120));
+        yPosition += Math.min(imgHeight, 120) + 15;
+
+        // Notes
+        if (seizureEvent.notes) {
+          pdf.setFont(undefined, 'bold');
+          pdf.text('Clinical Notes:', 20, yPosition);
+          yPosition += 8;
+          pdf.setFont(undefined, 'normal');
+          const lines = pdf.splitTextToSize(seizureEvent.notes, pageWidth - 40);
+          pdf.text(lines, 20, yPosition);
+          yPosition += lines.length * 6 + 10;
+        }
+
+        // Technical specifications
+        pdf.setFont(undefined, 'bold');
+        pdf.text('Technical Specifications:', 20, yPosition);
+        yPosition += 8;
+        pdf.setFont(undefined, 'normal');
+        pdf.text('• Sampling Rate: 256 Hz', 25, yPosition);
+        yPosition += 6;
+        pdf.text('• Channels: 8 (Standard 10-20 electrode system)', 25, yPosition);
+        yPosition += 6;
+        pdf.text('• Filter: Raw and cleaned data visualization', 25, yPosition);
+        yPosition += 6;
+        pdf.text('• Analysis: Automated seizure pattern detection', 25, yPosition);
+        yPosition += 15;
+
+        // Disclaimer
+        const disclaimerY = pdf.internal.pageSize.getHeight() - 20;
+        pdf.setFontSize(8);
+        pdf.setFont(undefined, 'italic');
+        pdf.text('This EEG analysis is for informational purposes only. Please consult with a healthcare professional for medical interpretation.', pageWidth / 2, disclaimerY, { align: 'center' });
+
+        // Save PDF
+        pdf.save(`${patientName}_seizure_${seizureEvent.id}_eeg_report.pdf`);
+      } catch (error) {
+        console.error('Error generating PDF:', error);
+        // Fallback to PNG if PDF fails
+        handleDownload('png');
+      }
+    }
   };
 
   return (
@@ -283,9 +378,19 @@ const EEGViewer: React.FC<EEGViewerProps> = ({ seizureEvent, patientName }) => {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleDownload}
+              onClick={() => handleDownload('png')}
+              title="Download EEG as PNG image"
             >
-              <Download className="h-4 w-4" />
+              <FileImage className="h-4 w-4" />
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleDownload('pdf')}
+              title="Download EEG report as PDF"
+            >
+              <FileText className="h-4 w-4" />
             </Button>
           </div>
         </div>

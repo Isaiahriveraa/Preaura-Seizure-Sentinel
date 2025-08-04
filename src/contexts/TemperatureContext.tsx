@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { useAuth } from './AuthContext'
+import { supabase } from '@/integrations/supabase/client'
 
 // Define the temperature units
 export type TemperatureUnit = 'celsius' | 'fahrenheit'
@@ -7,8 +9,10 @@ export type TemperatureUnit = 'celsius' | 'fahrenheit'
 interface TemperatureContextType {
   unit: TemperatureUnit
   toggleUnit: () => void
+  setUnit: (unit: TemperatureUnit) => void
   convertTemperature: (temp: number, fromUnit?: TemperatureUnit) => number
   getUnitSymbol: () => string
+  isLoading: boolean
 }
 
 // Create the context with undefined default (we'll handle this in useTemperature)
@@ -39,12 +43,71 @@ const fahrenheitToCelsius = (fahrenheit: number): number => {
 
 // Provider component
 export const TemperatureProvider: React.FC<TemperatureProviderProps> = ({ children }) => {
-  // State to track current unit (default to Celsius)
-  const [unit, setUnit] = useState<TemperatureUnit>('celsius')
+  const { user } = useAuth()
+  const [unit, setUnitState] = useState<TemperatureUnit>('celsius')
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Load user's temperature preference from profile
+  useEffect(() => {
+    const loadTemperaturePreference = async () => {
+      if (!user) {
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('temperature_unit')
+          .eq('user_id', user.id)
+          .single()
+
+        if (error) {
+          console.error('Error loading temperature preference:', error)
+        } else if (data?.temperature_unit) {
+          setUnitState(data.temperature_unit as TemperatureUnit)
+        }
+      } catch (error) {
+        console.error('Error loading temperature preference:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadTemperaturePreference()
+  }, [user])
+
+  // Function to save preference to database
+  const saveTemperaturePreference = async (newUnit: TemperatureUnit) => {
+    if (!user) return
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          user_id: user.id,
+          temperature_unit: newUnit,
+          updated_at: new Date().toISOString()
+        })
+
+      if (error) {
+        console.error('Error saving temperature preference:', error)
+      }
+    } catch (error) {
+      console.error('Error saving temperature preference:', error)
+    }
+  }
+
+  // Function to set temperature unit
+  const setUnit = async (newUnit: TemperatureUnit) => {
+    setUnitState(newUnit)
+    await saveTemperaturePreference(newUnit)
+  }
 
   // Function to toggle between units
-  const toggleUnit = () => {
-    setUnit(prevUnit => prevUnit === 'celsius' ? 'fahrenheit' : 'celsius')
+  const toggleUnit = async () => {
+    const newUnit = unit === 'celsius' ? 'fahrenheit' : 'celsius'
+    await setUnit(newUnit)
   }
 
   // Function to convert temperature based on current unit
@@ -73,8 +136,10 @@ export const TemperatureProvider: React.FC<TemperatureProviderProps> = ({ childr
   const value: TemperatureContextType = {
     unit,
     toggleUnit,
+    setUnit,
     convertTemperature,
-    getUnitSymbol
+    getUnitSymbol,
+    isLoading
   }
 
   return (

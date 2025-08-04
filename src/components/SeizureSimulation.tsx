@@ -15,6 +15,8 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import EEGViewer from "@/components/EEGViewer";
 import { type SeizureEvent } from "@/data/mockPatients";
+import { EEGGenerator, type EEGData } from "@/lib/eegGenerator";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SeizureSimulationProps {
   onSeizureRecorded?: (seizure: SeizureEvent) => void;
@@ -82,21 +84,55 @@ const SeizureSimulation: React.FC<SeizureSimulationProps> = ({ onSeizureRecorded
     setSimulatedSeizure(null);
   };
 
-  const handleStopRecording = () => {
+  const handleStopRecording = async () => {
     if (recordingTime > 10) { // Only create seizure if recording was longer than 10 seconds
       const now = new Date();
       const seizureId = generateSeizureId();
+      const seizureType = determineSeizureType();
+      const severity = determineSeverityScore(recordingTime);
       
+      // Generate unique EEG data for this seizure
+      const eegData = EEGGenerator.generateSeizureEEG(
+        seizureId,
+        recordingTime,
+        seizureType,
+        severity
+      );
+
       const newSeizure: SeizureEvent = {
         id: seizureId,
         date: now.toISOString().split('T')[0],
         time: now.toTimeString().split(' ')[0].slice(0, 5),
         duration: recordingTime,
         severity: determineSeizureSeverity(recordingTime),
-        type: determineSeizureType(),
+        type: seizureType,
         eegImageUrl: `/eeg/simulated_${seizureId}.png`,
         notes: generateSeizureNotes(seizurePhase, recordingTime)
       };
+
+      // Store seizure event with EEG data in database
+      if (user) {
+        try {
+          const { error } = await supabase
+            .from('seizure_events')
+            .insert({
+              user_id: user.id,
+              timestamp: now.toISOString(),
+              risk_level: severity,
+              notes: newSeizure.notes,
+              alert_triggered: severity > 7,
+              eeg_data: eegData // Store the complete EEG dataset
+            });
+
+          if (error) {
+            console.error('Error storing seizure event:', error);
+          } else {
+            console.log('Seizure event with EEG data saved successfully');
+          }
+        } catch (error) {
+          console.error('Error saving seizure event:', error);
+        }
+      }
 
       setSimulatedSeizure(newSeizure);
       
@@ -108,6 +144,14 @@ const SeizureSimulation: React.FC<SeizureSimulationProps> = ({ onSeizureRecorded
     setIsRecording(false);
     setRecordingTime(0);
     setSeizurePhase('none');
+  };
+
+  const determineSeverityScore = (duration: number): number => {
+    // Convert duration to severity score (1-10)
+    if (duration < 30) return 3;
+    if (duration < 60) return 5;
+    if (duration < 120) return 7;
+    return 9;
   };
 
   const generateSeizureNotes = (phase: string, duration: number): string => {

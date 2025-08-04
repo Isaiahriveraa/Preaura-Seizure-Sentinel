@@ -54,6 +54,7 @@ export type Database = {
           display_name: string | null
           emergency_contact: string | null
           id: string
+          temperature_unit: string | null
           updated_at: string
           user_id: string
         }
@@ -63,6 +64,7 @@ export type Database = {
           display_name?: string | null
           emergency_contact?: string | null
           id?: string
+          temperature_unit?: string | null
           updated_at?: string
           user_id: string
         }
@@ -72,6 +74,7 @@ export type Database = {
           display_name?: string | null
           emergency_contact?: string | null
           id?: string
+          temperature_unit?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -81,6 +84,7 @@ export type Database = {
         Row: {
           alert_triggered: boolean
           created_at: string
+          eeg_data: any | null
           id: string
           notes: string | null
           risk_level: number
@@ -90,6 +94,7 @@ export type Database = {
         Insert: {
           alert_triggered?: boolean
           created_at?: string
+          eeg_data?: any | null
           id?: string
           notes?: string | null
           risk_level: number
@@ -99,6 +104,7 @@ export type Database = {
         Update: {
           alert_triggered?: boolean
           created_at?: string
+          eeg_data?: any | null
           id?: string
           notes?: string | null
           risk_level?: number

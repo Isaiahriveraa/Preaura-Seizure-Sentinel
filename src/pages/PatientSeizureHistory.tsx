@@ -16,6 +16,8 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import EEGViewer from "@/components/EEGViewer";
 import { formatSeizureDate, getSeverityColor, type SeizureEvent } from "@/data/mockPatients";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 // Patient seizure data - in a real app, this would come from the user's profile
 const PATIENT_SEIZURE_DATA: SeizureEvent[] = [
@@ -76,6 +78,7 @@ const PatientSeizureHistory = () => {
   const [selectedSeizureId, setSelectedSeizureId] = useState<string | null>(null);
   const [filterPeriod, setFilterPeriod] = useState<'all' | '7days' | '30days' | '90days'>('all');
   const [filteredSeizures, setFilteredSeizures] = useState<SeizureEvent[]>(PATIENT_SEIZURE_DATA);
+  const [activeTab, setActiveTab] = useState('history');
 
   useEffect(() => {
     // Auto-select the most recent seizure
@@ -126,21 +129,139 @@ const PatientSeizureHistory = () => {
 
   const stats = getSeizureStats();
 
-  const exportSeizureData = () => {
-    const data = {
-      patientName: user?.email || 'Patient',
-      seizureHistory: filteredSeizures,
-      exportDate: new Date().toISOString(),
-      filterPeriod
-    };
+  const exportSeizureData = async () => {
+    try {
+      // Create PDF document
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      let yPosition = 20;
 
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `my_seizure_history_${filterPeriod}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+      // Title
+      pdf.setFontSize(18);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Seizure History & EEG Report', pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 15;
+
+      // Patient info
+      pdf.setFontSize(12);
+      pdf.setFont(undefined, 'normal');
+      pdf.text(`Patient: ${user?.email?.split('@')[0] || 'Patient'}`, 20, yPosition);
+      yPosition += 8;
+      pdf.text(`Report Date: ${new Date().toLocaleDateString()}`, 20, yPosition);
+      yPosition += 8;
+      pdf.text(`Filter Period: ${filterPeriod === 'all' ? 'All time' : `Last ${filterPeriod === '7days' ? '7 days' : filterPeriod === '30days' ? '30 days' : '90 days'}`}`, 20, yPosition);
+      yPosition += 15;
+
+      // Statistics Summary
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Summary Statistics:', 20, yPosition);
+      yPosition += 10;
+      pdf.setFont(undefined, 'normal');
+      pdf.text(`• Total Events: ${stats.totalSeizures}`, 25, yPosition);
+      yPosition += 6;
+      pdf.text(`• Average Duration: ${stats.avgDuration} seconds`, 25, yPosition);
+      yPosition += 6;
+      pdf.text(`• Severe Events: ${stats.severeCount}`, 25, yPosition);
+      yPosition += 6;
+      pdf.text(`• Last Event: ${stats.recentSeizure !== 'No recent seizures' ? new Date(stats.recentSeizure).toLocaleDateString() : 'None'}`, 25, yPosition);
+      yPosition += 15;
+
+      // Seizure Events List
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Seizure Events:', 20, yPosition);
+      yPosition += 10;
+
+      filteredSeizures.forEach((seizure, index) => {
+        // Check if we need a new page
+        if (yPosition > pageHeight - 40) {
+          pdf.addPage();
+          yPosition = 20;
+        }
+
+        pdf.setFont(undefined, 'bold');
+        pdf.text(`${index + 1}. ${new Date(seizure.date).toLocaleDateString()} at ${seizure.time}`, 25, yPosition);
+        yPosition += 6;
+        
+        pdf.setFont(undefined, 'normal');
+        pdf.text(`   Duration: ${seizure.duration}s | Type: ${seizure.type} | Severity: ${seizure.severity}`, 25, yPosition);
+        yPosition += 6;
+        
+        if (seizure.notes) {
+          const lines = pdf.splitTextToSize(`   Notes: ${seizure.notes}`, pageWidth - 50);
+          pdf.text(lines, 25, yPosition);
+          yPosition += lines.length * 6;
+        }
+        yPosition += 4;
+      });
+
+      // Add EEG visualization if there's a selected seizure
+      if (selectedSeizure) {
+        // Check if we need a new page for EEG
+        if (yPosition > pageHeight - 100) {
+          pdf.addPage();
+          yPosition = 20;
+        }
+
+        pdf.setFont(undefined, 'bold');
+        pdf.text('EEG Visualization:', 20, yPosition);
+        yPosition += 10;
+
+        // Try to capture the EEG canvas if it exists
+        const eegCanvas = document.querySelector('canvas');
+        if (eegCanvas) {
+          try {
+            const canvasImg = eegCanvas.toDataURL('image/png', 1.0);
+            const imgWidth = pageWidth - 40;
+            const imgHeight = 60; // Adjust height to fit nicely on page
+            
+            pdf.addImage(canvasImg, 'PNG', 20, yPosition, imgWidth, imgHeight);
+            yPosition += imgHeight + 10;
+            
+            pdf.setFont(undefined, 'normal');
+            pdf.text(`EEG for seizure on ${selectedSeizure.date} at ${selectedSeizure.time}`, 20, yPosition);
+          } catch (error) {
+            console.log('Could not capture EEG canvas:', error);
+            pdf.setFont(undefined, 'normal');
+            pdf.text('EEG visualization could not be captured', 20, yPosition);
+          }
+        }
+      }
+
+      // Medical disclaimer
+      if (yPosition > pageHeight - 30) {
+        pdf.addPage();
+        yPosition = 20;
+      } else {
+        yPosition = pageHeight - 25;
+      }
+      
+      pdf.setFontSize(8);
+      pdf.setFont(undefined, 'italic');
+      pdf.text('This report is for informational purposes only and should not replace professional medical advice.', pageWidth / 2, yPosition, { align: 'center' });
+
+      // Save the PDF
+      const fileName = `seizure_report_${user?.email?.split('@')[0] || 'patient'}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      pdf.save(fileName);
+
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      // Fallback to JSON export if PDF fails
+      const data = {
+        patientName: user?.email || 'Patient',
+        seizureHistory: filteredSeizures,
+        exportDate: new Date().toISOString(),
+        filterPeriod
+      };
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `my_seizure_history_${filterPeriod}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
   };
 
   return (
@@ -221,7 +342,7 @@ const PatientSeizureHistory = () => {
       </div>
 
       {/* Main Content */}
-      <Tabs defaultValue="history" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="flex justify-between items-center">
           <TabsList>
             <TabsTrigger value="history">Event History</TabsTrigger>
@@ -243,7 +364,7 @@ const PatientSeizureHistory = () => {
             </select>
             <Button onClick={exportSeizureData} size="sm" variant="outline">
               <Download className="h-4 w-4 mr-2" />
-              Export
+              Export PDF
             </Button>
           </div>
         </div>
@@ -298,7 +419,13 @@ const PatientSeizureHistory = () => {
                       <Button
                         variant={selectedSeizureId === seizure.id ? "default" : "outline"}
                         size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent parent div click
+                          setSelectedSeizureId(seizure.id);
+                          setActiveTab('eeg'); // Automatically switch to EEG tab
+                        }}
                       >
+                        <Brain className="w-4 h-4 mr-1" />
                         View EEG
                       </Button>
                     </div>
@@ -370,7 +497,7 @@ const PatientSeizureHistory = () => {
                   <div className="p-4 bg-orange-50 rounded-lg">
                     <h4 className="font-medium text-orange-900 mb-2">Severity Analysis</h4>
                     <p className="text-sm text-orange-800">
-                      Most recent events have been mild to moderate. Last severe event was 
+                      Most recent events have been mild to moderate. Last severe event was{' '}
                       {PATIENT_SEIZURE_DATA.find(s => s.severity === 'severe')?.date || 'several weeks ago'}.
                     </p>
                   </div>
