@@ -16,6 +16,10 @@ import DoctorLogin from "./pages/DoctorLogin";
 import DoctorDashboard from "./pages/DoctorDashboard";
 import PatientDetails from "./pages/PatientDetails";
 import NotFound from "./pages/NotFound";
+import { SimpleCHBTest } from "./ai/components/SimpleCHBTest";
+import { SeizureAPITester } from "./ai/components/SeizureAPITester";
+import { BulkSeizureCollector } from "./ai/components/BulkSeizureCollector";
+import { DatabaseTester } from "./ai/components/DatabaseTester";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +59,30 @@ const App = () => (
                   <ProtectedRoute>
                     <Header />
                     <PatientSeizureHistory />
+                  </ProtectedRoute>
+                } />
+                <Route path="/chb-test" element={
+                  <ProtectedRoute>
+                    <Header />
+                    <SimpleCHBTest />
+                  </ProtectedRoute>
+                } />
+                <Route path="/seizure-api" element={
+                  <ProtectedRoute>
+                    <Header />
+                    <SeizureAPITester />
+                  </ProtectedRoute>
+                } />
+                <Route path="/bulk-seizures" element={
+                  <ProtectedRoute>
+                    <Header />
+                    <BulkSeizureCollector />
+                  </ProtectedRoute>
+                } />
+                <Route path="/database-test" element={
+                  <ProtectedRoute>
+                    <Header />
+                    <DatabaseTester />
                   </ProtectedRoute>
                 } />
                 <Route path="*" element={<NotFound />} />
